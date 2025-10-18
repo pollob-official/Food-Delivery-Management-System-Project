@@ -7,7 +7,7 @@ class FoodController{
        view("Inventory");
     }
 }
-// comment
+// comme
 
 
 ?>
