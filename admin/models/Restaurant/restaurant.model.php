@@ -107,7 +107,7 @@ class Restaurant extends Model implements JsonSerializable{
 
 	static function html_select($name="cmbRestaurant"){
 		global $db,$tx;
-		$html="<select id='$name' name='$name'> ";
+		$html="<select id='$name' name='$name' class=\"form-select\">  ";
 		$result =$db->query("select id,name from {$tx}restaurants");
 		while($restaurant=$result->fetch_object()){
 			$html.="<option value ='$restaurant->id'>$restaurant->name</option>";

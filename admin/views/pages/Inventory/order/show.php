@@ -1,54 +1,29 @@
 <?php
-// show.php (Inventory order view)
-// Replace your existing view file with this. It ensures $db is available and then
-// loads order, customer and order details to render the invoice-like page.
+// show.php (Inventory Order View - Using menu_items)
 
-// -------------- Ensure DB connection is available --------------
+// -------------- DB Connection --------------
 if (!isset($db) || !$db instanceof mysqli) {
-    // Try to include a project db_config. Adjust this path if your config is elsewhere.
-    // Typical path from admin/views/pages/... to project root: go up 5 directories to reach project root.
     $try_path = __DIR__ . '/../../../../../../configs/db_config.php';
-    if (file_exists($try_path)) {
-        require_once($try_path);
-    }
+    if (file_exists($try_path)) require_once($try_path);
 
-    // If still not set, create a local connection (fallback).
     if (!isset($db) || !$db instanceof mysqli) {
-        // <-- Adjust credentials if needed for your environment -->
         $db = new mysqli("localhost", "root", "", "food_delivery");
-        if ($db->connect_error) {
-            die("DB Connection error: " . $db->connect_error);
-        }
+        if ($db->connect_error) die("DB Connection error: " . $db->connect_error);
     }
 }
 
-// -------------- Helpers / input --------------
-$orderId = null;
-
-// Try to get order id from passed variables (commonly $data or $params in controllers)
-if (isset($data) && is_object($data) && isset($data->id)) {
-    $orderId = intval($data->id);
-} elseif (isset($_GET['id'])) {
-    $orderId = intval($_GET['id']);
-} elseif (isset($id)) {
-    $orderId = intval($id);
-}
-
-if (!$orderId || $orderId <= 0) {
+// -------------- Get Order ID --------------
+$orderId = intval($_GET['id'] ?? $id ?? ($data->id ?? 0));
+if (!$orderId) {
     echo "<div class='alert alert-danger'>Invalid order id.</div>";
     return;
 }
 
-// -------------- Load order --------------
+// -------------- Load Order --------------
 $stmt = $db->prepare("SELECT * FROM orders WHERE id = ? LIMIT 1");
-if (!$stmt) {
-    echo "<div class='alert alert-danger'>DB prepare error: " . htmlspecialchars($db->error) . "</div>";
-    return;
-}
 $stmt->bind_param("i", $orderId);
 $stmt->execute();
-$orderRes = $stmt->get_result();
-$order = $orderRes->fetch_object();
+$order = $stmt->get_result()->fetch_object();
 $stmt->close();
 
 if (!$order) {
@@ -56,191 +31,206 @@ if (!$order) {
     return;
 }
 
-// -------------- Load customer, restaurant, rider (if present) --------------
-$customer = null;
-if (!empty($order->customer_id)) {
-    $stmt = $db->prepare("SELECT * FROM customers WHERE id = ? LIMIT 1");
-    if ($stmt) {
-        $stmt->bind_param("i", $order->customer_id);
-        $stmt->execute();
-        $cres = $stmt->get_result();
-        $customer = $cres->fetch_object();
-        $stmt->close();
-    }
-}
+// -------------- Load Related Entities --------------
+$customer = $db->query("SELECT * FROM customers WHERE id = " . intval($order->customer_id))->fetch_object() ?? null;
+$restaurant = $db->query("SELECT * FROM restaurants WHERE id = " . intval($order->restaurant_id))->fetch_object() ?? null;
+$rider = $db->query("SELECT * FROM riders WHERE id = " . intval($order->rider_id))->fetch_object() ?? null;
 
-$restaurant = null;
-if (!empty($order->restaurant_id)) {
-    $stmt = $db->prepare("SELECT * FROM restaurants WHERE id = ? LIMIT 1");
-    if ($stmt) {
-        $stmt->bind_param("i", $order->restaurant_id);
-        $stmt->execute();
-        $rres = $stmt->get_result();
-        $restaurant = $rres->fetch_object();
-        $stmt->close();
-    }
-}
-
-$rider = null;
-if (!empty($order->rider_id)) {
-    $stmt = $db->prepare("SELECT * FROM riders WHERE id = ? LIMIT 1");
-    if ($stmt) {
-        $stmt->bind_param("i", $order->rider_id);
-        $stmt->execute();
-        $rres2 = $stmt->get_result();
-        $rider = $rres2->fetch_object();
-        $stmt->close();
-    }
-}
-
-// -------------- Load order details (items) --------------
+// -------------- Load Order Items --------------
 $items = [];
-$stmt = $db->prepare("SELECT * FROM order_details WHERE order_id = ?");
-if ($stmt) {
-    $stmt->bind_param("i", $orderId);
-    $stmt->execute();
-    $dres = $stmt->get_result();
-    while ($row = $dres->fetch_object()) {
-        // try fetch product name if product_id exists
-        $product_name = "Unknown product";
-        if (!empty($row->product_id)) {
-            $pstmt = $db->prepare("SELECT name FROM products WHERE id = ? LIMIT 1");
-            if ($pstmt) {
-                $pstmt->bind_param("i", $row->product_id);
-                $pstmt->execute();
-                $pres = $pstmt->get_result();
-                $pobj = $pres->fetch_object();
-                if ($pobj && isset($pobj->name)) $product_name = $pobj->name;
-                $pstmt->close();
-            }
-        } elseif (!empty($row->product_name)) {
-            $product_name = $row->product_name;
-        }
-
-        $items[] = (object)[
-            'id' => $row->id,
-            'product_id' => $row->product_id ?? null,
-            'product_name' => $product_name,
-            'qty' => isset($row->qty) ? (float)$row->qty : (float)($row->quantity ?? 1),
-            'price' => isset($row->price) ? (float)$row->price : (float)($row->unit_price ?? 0),
-            'line_total' => (isset($row->price) && isset($row->qty)) ? ($row->price * $row->qty) : (isset($row->line_total) ? $row->line_total : 0)
-        ];
-    }
-    $stmt->close();
+$stmt = $db->prepare("
+    SELECT od.*, mi.name AS item_name 
+    FROM order_details od 
+    LEFT JOIN menu_items mi ON od.menu_item_id = mi.id
+    WHERE od.order_id = ?");
+$stmt->bind_param("i", $orderId);
+$stmt->execute();
+$res = $stmt->get_result();
+while ($row = $res->fetch_object()) {
+    $items[] = (object)[
+        'id' => $row->id,
+        'menu_item_id' => $row->menu_item_id,
+        'item_name' => $row->item_name ?? 'Unknown Item',
+        'qty' => floatval($row->qty ?? 1),
+        'price' => floatval($row->unit_price ?? 0),
+        'line_total' => floatval($row->total_price ?? 0)
+    ];
 }
+$stmt->close();
 
 // -------------- Calculations --------------
-$subtotal = 0;
-foreach ($items as $it) {
-    $subtotal += floatval($it->line_total);
-}
-$delivery_fee = isset($order->delivery_fee) ? floatval($order->delivery_fee) : 0;
-$tax_amount = isset($order->tax_amount) ? floatval($order->tax_amount) : 0;
-$coupon_discount = 0;
-if (!empty($order->coupon_id)) {
-    // Simple assumption: coupon stored elsewhere; default small discount for demonstration
-    $coupon_discount = 0; // adjust if you have coupon logic
-}
-$grand_total = ($order->total_amount ?? $subtotal) + $delivery_fee + $tax_amount - $coupon_discount;
-
-// -------------- Render HTML (invoice) --------------
+$subtotal = array_sum(array_map(fn($it) => $it->line_total, $items));
+$delivery_fee = floatval($order->delivery_fee ?? 0);
+$tax_amount = floatval($order->tax_amount ?? 0);
+$coupon_discount = floatval($order->coupon_discount ?? 0); // if stored on order
+// fallback if order stores total_amount already, keep consistent:
+// $grand_total = floatval($order->total_amount ?? (($subtotal + $tax_amount + $delivery_fee) - $coupon_discount));
+$grand_total = ($subtotal + $tax_amount + $delivery_fee) - $coupon_discount;
 ?>
+
 <style>
-/* Small visual tweaks - you can move to global CSS */
-.invoice { background:#fff;padding:2rem;border-radius:.5rem;box-shadow:0 6px 18px rgba(0,0,0,.06); max-width:1000px;margin:auto; }
+/* Page look */
+body { background: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+.invoice { background: #fff; padding: 2rem; border-radius: .5rem; box-shadow: 0 6px 18px rgba(0,0,0,.06); max-width: 1000px; margin: 2rem auto; }
 .table thead th { border-bottom: 2px solid #e9ecef; }
 .no-break { page-break-inside: avoid; }
-@media print { .no-print { display:none !important; } .invoice{box-shadow:none;border:none;margin:0;border-radius:0;} }
-.table input[type="number"], .table input[type="text"] { width:100%; min-width:0; box-shadow:none; border:none; background:transparent; padding:.25rem 0; }
-.table input:focus { outline:none; }
+
+/* Notes styling (on-screen) */
+textarea.note-field { width:100%; border:1px solid #ddd; border-radius:.25rem; padding:.5rem; resize:none; }
+
+/* Totals small screen tweak */
+.totals-box { min-width:320px; }
+
+/* -------- PRINT STYLES -------- */
+@media print {
+    /* hide everything except invoice */
+    body * { visibility: hidden; }
+
+    #printable-invoice, #printable-invoice * { visibility: visible; }
+
+    /* place invoice full-page, remove shadows/padding that cause overflow */
+    #printable-invoice {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        padding: 0;      /* reduce to avoid overflow */
+        margin: 0;
+        box-shadow: none;
+        border-radius: 0;
+        background: #fff;
+        overflow: hidden;
+    }
+
+    /* page sizing exact A4 */
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        width: 210mm;
+        height: 297mm;
+        overflow: hidden;
+    }
+
+    /* hide admin layout pieces if present */
+    .sidebar, .topbar, .navbar, .no-print { display: none !important; }
+
+    /* Make inputs/textarea print like plain text (no box) */
+    textarea, input, select {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: #000 !important;
+        resize: none !important;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+
+    /* tighten up padding so content fits on single page */
+    .invoice { padding: 10mm !important; border-radius: 0 !important; }
+
+    @page { size: A4; margin: 5mm; }
+}
 </style>
 
-<div class="invoice">
+<div id="printable-invoice" class="invoice">
+    <!-- Header -->
     <div class="d-flex justify-content-between align-items-start mb-4">
         <div>
-            <h3 class="mb-0">Zomo Food Delivery</h3>
+            <h3 style="margin:0">Zomo Food Delivery</h3>
             <small class="text-muted">Dhaka, Bangladesh</small><br>
             <small class="text-muted">Phone: +8801234567890 · Email: support@zomo.com</small>
         </div>
         <div class="text-end">
-            <h4 class="mb-0">INVOICE</h4>
-            <small class="text-muted">#<?= htmlspecialchars(str_pad($order->id, 4, '0', STR_PAD_LEFT)) ?></small><br>
-            <small class="text-muted">Date: <?= htmlspecialchars(date("d-m-Y", strtotime($order->created_at))) ?></small>
+            <h4 style="margin:0">INVOICE</h4>
+            <small>#<?= str_pad(intval($order->id), 4, '0', STR_PAD_LEFT) ?></small><br>
+            <small>Date: <?= date("d-m-Y", strtotime($order->created_at)) ?></small>
         </div>
     </div>
 
+    <!-- Addresses -->
     <div class="row mb-4">
         <div class="col-sm-6">
-            <h6 class="mb-1">Bill To</h6>
+            <h6 style="margin-bottom:.25rem">Bill To</h6>
             <strong><?= htmlspecialchars($customer->name ?? 'Unknown Customer') ?></strong><br>
-            <small><?= nl2br(htmlspecialchars($order->delivery_address ?? ($customer->address ?? ''))) ?></small><br>
+            <small><?= nl2br(htmlspecialchars($order->delivery_address ?? '')) ?></small><br>
             <small>Phone: <?= htmlspecialchars($customer->phone ?? 'N/A') ?></small>
         </div>
         <div class="col-sm-6 text-sm-end">
-            <h6 class="mb-1">Restaurant</h6>
+            <h6 style="margin-bottom:.25rem">Restaurant</h6>
             <strong><?= htmlspecialchars($restaurant->name ?? 'Unknown Restaurant') ?></strong><br>
             <small><?= htmlspecialchars($restaurant->address ?? '') ?></small><br>
             <small>Phone: <?= htmlspecialchars($restaurant->phone ?? 'N/A') ?></small>
         </div>
     </div>
 
+    <!-- Items table -->
     <div class="table-responsive mb-3 no-break">
-        <table class="table align-middle">
+        <table class="table align-middle" style="margin-bottom:0">
             <thead class="table-light">
                 <tr>
-                    <th style="width:5%">#</th>
-                    <th style="width:55%">Description</th>
-                    <th style="width:10%">Qty</th>
-                    <th style="width:15%">Unit Price</th>
-                    <th style="width:15%">Line Total</th>
+                    <th style="width:40px">#</th>
+                    <th>Description</th>
+                    <th style="width:80px">Qty</th>
+                    <th style="width:120px">Unit Price</th>
+                    <th style="width:120px">Line Total</th>
                 </tr>
             </thead>
             <tbody>
-                <?php if (count($items) === 0): ?>
+                <?php if (empty($items)): ?>
                     <tr><td colspan="5" class="text-center text-muted">No items found for this order.</td></tr>
-                <?php else: ?>
-                    <?php $i=1; foreach ($items as $it): ?>
-                        <tr>
-                            <td><?= $i ?></td>
-                            <td><?= htmlspecialchars($it->product_name) ?></td>
-                            <td><?= htmlspecialchars($it->qty) ?></td>
-                            <td><?= htmlspecialchars(number_format($it->price,2)) ?></td>
-                            <td><?= htmlspecialchars(number_format($it->line_total,2)) ?></td>
-                        </tr>
-                    <?php $i++; endforeach; ?>
-                <?php endif; ?>
+                <?php else: $i = 1; foreach ($items as $it): ?>
+                    <tr>
+                        <td><?= $i ?></td>
+                        <td><?= htmlspecialchars($it->item_name) ?></td>
+                        <td><?= $it->qty ?></td>
+                        <td style="text-align:right"><?= number_format($it->price, 2) ?></td>
+                        <td style="text-align:right"><?= number_format($it->line_total, 2) ?></td>
+                    </tr>
+                <?php $i++; endforeach; endif; ?>
             </tbody>
         </table>
     </div>
 
-    <div class="d-flex justify-content-end align-items-center mb-3 no-print">
-        <div style="min-width:320px;">
+    <!-- Totals block (the section you asked for) -->
+    <div class="d-flex justify-content-end align-items-center mb-3">
+        <div class="totals-box" style="min-width:320px;">
             <div class="row g-2">
-                <div class="col-6 text-muted">Subtotal</div><div class="col-6 text-end fw-semibold"><?= number_format($subtotal,2) ?></div>
+                <div class="col-6 text-muted">Subtotal</div>
+                <div class="col-6 text-end fw-semibold"><?= number_format($subtotal, 2) ?></div>
 
-                <div class="col-6 text-muted">Tax</div><div class="col-6 text-end"><?= number_format($tax_amount,2) ?></div>
+                <div class="col-6 text-muted">Tax</div>
+                <div class="col-6 text-end"><?= number_format($tax_amount, 2) ?></div>
 
-                <div class="col-6 text-muted">Delivery Fee</div><div class="col-6 text-end"><?= number_format($delivery_fee,2) ?></div>
+                <div class="col-6 text-muted">Delivery Fee</div>
+                <div class="col-6 text-end"><?= number_format($delivery_fee, 2) ?></div>
 
-                <div class="col-6 text-muted">Coupon Discount</div><div class="col-6 text-end">-<?= number_format($coupon_discount,2) ?></div>
+                <div class="col-6 text-muted">Coupon Discount</div>
+                <div class="col-6 text-end">-<?= number_format($coupon_discount, 2) ?></div>
 
-                <hr>
+                <div class="col-12"><hr style="margin: .5rem 0"></div>
 
-                <div class="col-6 text-muted fs-5">Total</div><div class="col-6 text-end fs-5 fw-bold"><?= number_format($grand_total,2) ?></div>
+                <div class="col-6 text-muted fs-5">Total</div>
+                <div class="col-6 text-end fs-5 fw-bold"><?= number_format($grand_total, 2) ?></div>
             </div>
         </div>
     </div>
 
+    <!-- Notes -->
     <div class="mb-4">
-        <label class="form-label">Notes</label>
-        <textarea class="form-control" rows="3">Thank you for ordering with Zomo!</textarea>
+        <label class="form-label" style="font-weight:600; display:block; margin-bottom:.25rem">Notes</label>
+        <!-- keep editable on-screen, but prints as plain text -->
+        <textarea class="note-field" rows="3"><?= htmlspecialchars($order->notes ?? 'Thank you for ordering with Zomo!') ?></textarea>
     </div>
 
+    <!-- Footer/buttons (hidden on print) -->
     <div class="d-flex justify-content-between align-items-center no-print">
         <div><small class="text-muted">Payment Status: <?= htmlspecialchars(ucfirst($order->payment_status ?? 'unknown')) ?></small></div>
         <div>
             <button onclick="window.print()" class="btn btn-success me-2">Print / Save PDF</button>
-            <a class="btn btn-primary" href="#">Download HTML</a>
         </div>
     </div>
 </div>
+
+

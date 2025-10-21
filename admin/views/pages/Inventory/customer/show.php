@@ -1,5 +1,5 @@
 <?php
-echo Page::title(["title"=>"Show Customer"]);
+// echo Page::title(["title"=>"Show Customer"]);
 echo Page::body_open();
 echo Html::link(["class"=>"btn btn-success", "route"=>"customer", "text"=>"Manage Customer"]);
 echo Page::context_open();

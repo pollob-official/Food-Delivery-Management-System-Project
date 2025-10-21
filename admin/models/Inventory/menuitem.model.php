@@ -95,16 +95,24 @@ class MenuItem extends Model implements JsonSerializable{
 
 	//-------------HTML----------//
 
-	static function html_select($name="cmbMenuItem"){
-		global $db,$tx;
-		$html="<select id='$name' name='$name'> ";
-		$result =$db->query("select id,name from {$tx}menu_items");
-		while($menuitem=$result->fetch_object()){
-			$html.="<option value ='$menuitem->id'>$menuitem->name</option>";
-		}
-		$html.="</select>";
-		return $html;
-	}
+	static function html_select($id="menuItemsSelect", $restaurant_id=null){
+    global $db,$tx;
+    $html = "<select class='form-select' id='$id' name='menu_item_id'>";
+    $html .= "<option value=''>Select Menu Item</option>";
+
+    $sql = "SELECT id, name, price FROM {$tx}menu_items WHERE 1";
+    if($restaurant_id) $sql .= " AND restaurant_id=" . intval($restaurant_id);
+
+    $result = $db->query($sql);
+    while($menuitem = $result->fetch_object()){
+        $price = number_format($menuitem->price, 2, '.', '');
+        $html .= "<option value='{$menuitem->id}' data-price='{$price}'>{$menuitem->name} - {$price}</option>";
+    }
+
+    $html .= "</select>";
+    return $html;
+}
+
 	static function html_table($page = 1,$perpage = 10,$criteria="",$action=true){
 		global $db,$tx,$base_url;
 		$count_result =$db->query("select count(*) total from {$tx}menu_items $criteria ");

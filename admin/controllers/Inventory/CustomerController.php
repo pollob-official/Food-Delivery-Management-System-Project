@@ -3,10 +3,10 @@ class CustomerController extends Controller{
 	public function __construct(){
 	}
 	public function index(){
-		view("Customers");
+		view("Inventory");
 	}
 	public function create(){
-		view("Customers");
+		view("Inventory");
 	}
 public function save($data,$file){
 	if(isset($data["create"])){
@@ -15,15 +15,19 @@ public function save($data,$file){
 	if(!preg_match("/^[\s\S]+$/",$_POST["txtName"])){
 		$errors["name"]="Invalid name";
 	}
-	if(!preg_match("/^[\s\S]+$/",$data["default_address_id"])){
-		$errors["default_address_id"]="Invalid default_address_id";
+	if(!is_valid_email($data["email"])){
+		$errors["email"]="Invalid email";
+	}
+	if(!preg_match("/^[\s\S]+$/",$_POST["txtPhone"])){
+		$errors["phone"]="Invalid phone";
 	}
 
 */
 		if(count($errors)==0){
 			$customer=new Customer();
 		$customer->name=$data["name"];
-		$customer->default_address_id=$data["default_address_id"];
+		$customer->email=$data["email"];
+		$customer->phone=$data["phone"];
 		$customer->created_at=$now;
 
 			$customer->save();
@@ -34,7 +38,7 @@ public function save($data,$file){
 	}
 }
 public function edit($id){
-		view("Customers",Customer::find($id));
+		view("Inventory",Customer::find($id));
 }
 public function update($data,$file){
 	if(isset($data["update"])){
@@ -43,8 +47,11 @@ public function update($data,$file){
 	if(!preg_match("/^[\s\S]+$/",$_POST["txtName"])){
 		$errors["name"]="Invalid name";
 	}
-	if(!preg_match("/^[\s\S]+$/",$data["default_address_id"])){
-		$errors["default_address_id"]="Invalid default_address_id";
+	if(!is_valid_email($data["email"])){
+		$errors["email"]="Invalid email";
+	}
+	if(!preg_match("/^[\s\S]+$/",$_POST["txtPhone"])){
+		$errors["phone"]="Invalid phone";
 	}
 
 */
@@ -52,7 +59,8 @@ public function update($data,$file){
 			$customer=new Customer();
 			$customer->id=$data["id"];
 		$customer->name=$data["name"];
-		$customer->default_address_id=$data["default_address_id"];
+		$customer->email=$data["email"];
+		$customer->phone=$data["phone"];
 		$customer->created_at=$now;
 
 		$customer->update();
@@ -63,14 +71,14 @@ public function update($data,$file){
 	}
 }
 	public function confirm($id){
-		view("Customers");
+		view("Inventory");
 	}
 	public function delete($id){
 		Customer::delete($id);
 		redirect();
 	}
 	public function show($id){
-		view("Customers",Customer::find($id));
+		view("Inventory",Customer::find($id));
 	}
 }
 ?>

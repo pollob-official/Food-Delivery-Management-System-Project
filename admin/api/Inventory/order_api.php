@@ -29,6 +29,41 @@ class OrderApi{
 		$order->save();
 		echo json_encode(["success" => "yes"]);
 	}
+	function save_order($data,$file=[]){
+		global $now;
+		$order=new Order();
+		$order->customer_id=$data["customer_id"];
+		$order->rider_id=$data["rider_id"];
+		$order->restaurant_id=$data["restaurant_id"];
+		$order->delivery_address=$data["delivery_address"];
+		$order->total_amount=$data["total_amount"];
+		$order->delivery_fee=$data["delivery_fee"];
+		$order->tax_amount=$data["tax_amount"];
+		$order->coupon_id=$data["coupon_id"];
+		$order->payment_status=$data["payment_status"];
+		$order->tracking_id=$data["tracking_id"];
+		$order->created_at=$now;
+		$order->updated_at=$now;
+		$order->version=$data["version"];
+
+		$order->save();
+
+		$orderdetail=new OrderDetail();
+		$orderdetail->qty=$data["qty"];
+		$orderdetail->notes=$data["notes"];
+		$orderdetail->created_at=$data["created_at"];
+
+		$orderdetail->save();
+
+		
+
+
+
+
+
+
+		echo json_encode(["success" => $data]);
+	}
 	function update($data,$file=[]){
 		$order=new Order();
 		$order->id=$data["id"];

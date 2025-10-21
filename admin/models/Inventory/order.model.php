@@ -169,7 +169,7 @@ class Order extends Model implements JsonSerializable
 		list($total_rows) = $count_result->fetch_row();
 		$total_pages = ceil($total_rows / $perpage);
 		$top = ($page - 1) * $perpage;
-		$result = $db->query("select id,customer_id,rider_id,restaurant_id,delivery_address,total_amount,delivery_fee,tax_amount,coupon_id,tracking_id,payment_status,created_at,updated_at,version from {$tx}Orders $criteria limit $top,$perpage");
+		$result = $db->query("select id,customer_id,rider_id,restaurant_id,delivery_address,total_amount,delivery_fee,tax_amount,coupon_id,tracking_id,payment_status,created_at,updated_at,version from {$tx}Orders order by id desc $criteria limit $top,$perpage");
 		$html = "<table class='table'>";
 		$html .= "<tr><th colspan='3'>" . Html::link(["class" => "btn btn-success", "route" => "order/create", "text" => "New Order"]) . "</th></tr>";
 		if ($action) {

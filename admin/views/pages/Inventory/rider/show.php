@@ -14,24 +14,10 @@ $orders = $data["orders"];
 
 <div class="row">
   <!-- Rider Info -->
-  <div class="col-xxl-3 col-md-4">
-    <div class="card text-center p-3">
-      <img src="<?= $base_url ?>/img/<?= $rider->photo ?>" alt="Rider Photo"
-           class="rounded-circle mx-auto" style="width:100px; height:100px; object-fit:cover;">
-      <h5 class="mt-3"><?= htmlspecialchars($rider->name) ?></h5>
-      <p class="text-muted mb-1"><?= htmlspecialchars($rider->vehicle_type) ?> - <?= htmlspecialchars($rider->car_number) ?></p>
-      <p class="small <?= $rider->is_available ? 'text-success' : 'text-danger' ?>">
-        <?= $rider->is_available ? 'Available' : 'Not Available' ?>
-      </p>
-      <div class="d-flex justify-content-center gap-2">
-        <a href="<?= $base_url ?>/rider/edit/<?= $rider->id ?>" class="btn btn-sm btn-outline-primary">Edit Profile</a>
-        <a href="<?= $base_url ?>/logout" class="btn btn-sm btn-outline-danger">Logout</a>
-      </div>
-    </div>
-  </div>
+  
 
   <!-- Orders Table -->
-  <div class="col-xxl-9 col-md-8">
+  <div class="col-xxl-12 col-md-12">
     <div class="card card-table">
       <div class="card-body">
         <div class="title-header option-title d-flex justify-content-between align-items-center">
@@ -40,7 +26,7 @@ $orders = $data["orders"];
           <div> 
             <form action="<?= $base_url?>/rider/show/<?=$rider->id?>" method="Get">
               <?php 
-              $tracking= $_GET['tracking_order'];
+              $tracking= $_GET['tracking_order'] ?? "";
               echo Tracking::html_select("tracking_order",  $tracking)
               
 

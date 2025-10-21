@@ -1,7 +1,7 @@
      <div class="sidebar-wrapper">
                 <div>
                     <div class="logo-wrapper logo-wrapper-center">
-                        <a href="index.html" data-bs-original-title="" title="">
+                        <a href="<?= $base_url?>/home" data-bs-original-title="" title="">
                             <img class="img-fluid for-white" src="<?php echo  $base_url?>/assets/images/logo/full-white.svg" alt="logo">
                         </a>
                         <div class="back-btn">
